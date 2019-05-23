@@ -1,0 +1,89 @@
+ content{
+
+           width: 100%;
+            color: #ff2217;
+         }
+
+#calendar {
+            position: absolute;
+            padding: 5px;
+            border: 1px solid #000000;
+            background: #8f3349;
+            display: none;
+        }
+
+        #todayTime {
+            padding: 5px 0;
+            font-size: 40px;
+            color: white;
+        }
+        #todayDate {
+            padding: 5px 0;
+            font-size: 24px;
+            color: #ffcf88;
+        }
+        #tools {
+            padding: 5px 0;
+            height: 30px;
+            color: #555;
+        }
+        #tools .l {
+            float: left;
+        }
+        #tools .r {
+            float: right;
+        }
+
+        th {
+     text-align: center;
+}
+
+
+        table {
+            width: 60%;
+            color: white;
+        }
+        table th {
+            color: #a2cbf3;
+        }
+        table td {
+            text-align: center;
+            cursor: default;
+        }
+        table td.today {
+            background: #cc2951;
+            color: white;
+        }
+
+       .form-control{
+            display: block;
+            width: 100%;
+            height: 34px;
+            padding: 6px 12px;
+            font-size: 14px;
+            line-height: 1.42857143;
+            color: #555;
+            background-color: #fff;
+            background-image: none;
+            border: 1px solid #ccc;
+            border-radius: 4px;
+            -webkit-box-shadow: inset 0 1px 1px rgba(0,0,0,.075);
+            box-shadow: inset 0 1px 1px rgba(0,0,0,.075);
+            -webkit-transition: border-color ease-in-out .15s,-webkit-box-shadow ease-in-out .15s;
+            -o-transition: border-color ease-in-out .15s,box-shadow ease-in-out .15s;
+            transition: border-color ease-in-out .15s,box-shadow ease-in-out .15s;
+
+       }
+       label{
+        display: inline-block;
+        max-width: 100%;
+        margin-bottom: 5px;
+        padding-top: 32px;
+        font-weight: 700;
+       }
+.btn-default {
+    color: #333;!important;
+    background-color: #fff;!important;
+    border-color: #ccc;!important;
+    margin-top: 25px;!important;
+}

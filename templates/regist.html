@@ -1,0 +1,83 @@
+<!DOCTYPE html>
+<head>
+<meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
+<meta http-equiv="Pragma" content="no-cache">
+<meta http-equiv="Cache-Control" content="no-cache">
+<meta http-equiv="Expires" content="0">
+<title>后台管理</title>
+<link href="{{ url_for('static',filename='css/regist.css' )}}" rel="stylesheet"/>
+</head>
+
+<body>
+<div class="login_box">
+      <div class="login_l_img"><img src="{{ url_for('static',filename='images/login-img.png')}}" /></div>
+      <div class="login">
+          <div class="login_logo"><a href="#"><img src="{{ url_for('static',filename='images/login_logo.png')}}" /></a></div>
+          <div class="login_name">
+               <p>后台管理系统</p>
+          </div>
+             {% for msg in get_flashed_messages(category_filter=['err']) %}　　　　<!--flash信息-->
+                        <p style="color: red">{{ msg }}</p>
+                    {% endfor %}
+                    {% for msg in get_flashed_messages(category_filter=['ok']) %}
+                        <p style="color: green">{{ msg }}</p>
+                    {% endfor %}
+          <form action="" method="post">
+              <fieldset style="border: none">
+                            <div class="form-group">
+                                {{ form.account }}
+                            </div>
+                            {% for err in form.account.errors %}
+                                <div class="col-md-12">
+                                    <span style="color: red">{{ err }}</span>
+                                </div>
+                            {% endfor %}
+                            <div class="form-group">
+                                {{ form.email }}
+                            </div>
+                            {% for err in form.email.errors %}
+                                <div class="col-md-12">
+                                    <span style="color: red">{{ err }}</span>
+                                </div>
+                            {% endfor %}
+                            <div class="form-group">
+
+                                {{ form.phone }}
+                            </div>
+                            {% for err in form.phone.errors %}
+                                <div class="col-md-12">
+                                    <span style="color: red">{{ err }}</span>
+                                </div>
+                            {% endfor %}
+                            <div class="form-group">
+
+                                {{ form.pwd }}
+                            </div>
+                            {% for err in form.pwd.errors %}
+                                <div class="col-md-12">
+                                    <span style="color: red">{{ err }}</span>
+                                </div>
+                            {% endfor %}
+                            <div class="form-group">
+
+                                {{ form.repwd }}
+                            </div>
+                            {% for err in form.repwd.errors %}
+                                <div class="col-md-12">
+                                    <span style="color: red" >{{ err }}</span>
+                                </div>
+                            {% endfor %}
+                            {{ form.csrf_token }}
+                            {{ form.submit }}
+ </fieldset>
+{#              <input name="username" type="text"  placeholder="用户名">  {{ form.account }}#}
+{#              <input name="password1" type="password"  placeholder="密码" />#}
+{#              <input name="password2" type="password"  placeholder="确认密码" />#}
+{#              <input value="注册" style="width:100%;" type="submit">#}
+          </form>
+      </div>
+</div>
+<div style="text-align:center;">
+</div>
+</body>
+</html>

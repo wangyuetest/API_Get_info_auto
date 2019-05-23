@@ -1,0 +1,36 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Title</title>
+</head>
+<body>
+<div>
+    <h2>查询结果</h2>
+     <table class="table">
+         <thead>
+         <tr>
+             <th>录音地址</th>
+             <th>状态</th>
+             <th>调取时间</th>
+         </tr>
+         </thead>
+         <tbody>
+         {% for url in url %}
+             <tr>
+             <td>{{ url}}</td>
+             <td>{% if status>0 %}
+                 seccuss
+                 {% else %}
+                 Flase
+                 {% endif %}
+             </td>
+             <td>{{time}}</td>
+             </tr>
+         {% endfor %}
+
+         </tbody>
+     </table>
+</div>
+</body>
+</html>

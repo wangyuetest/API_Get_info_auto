@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project version="4">
+  <component name="PublishConfigData" serverName="192.168.1.171">
+    <serverData>
+      <paths name="192.168.1.171">
+        <serverdata>
+          <mappings>
+            <mapping deploy="/home/centos/diaozi" local="$PROJECT_DIR$" web="/192.168.1.171:500" />
+            <mapping local="" />
+          </mappings>
+        </serverdata>
+      </paths>
+    </serverData>
+  </component>
+</project>

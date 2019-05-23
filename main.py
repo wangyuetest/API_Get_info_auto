@@ -3,14 +3,13 @@ import time
 import pandas as pd
 import requests
 import json
-import re
 import config
-import os
 import shutil
-import MySQLdb
+import pymysql
 import xlwt, xlrd
-import os
-from test_report_email_ import *
+import threading
+from test_report_email_ import Mailer
+from concurrent import futures
 import time
 from datetime import timedelta
 from test_report_email_ import *
@@ -23,12 +22,21 @@ from models import User
 from exts import db
 import logging
 from functools import wraps
-# LOG_FORMAT="%(asctime)s=====+++++%(levelname)s++*****++%(message)s"
-# logging.basicConfig(filename="tsetdiaozi.log",level=logging.WARNING,format=LOG_FORMAT)
+import sys
+from sqlalchemy import create_engine
+# reload(sys)
+# sys.setdefaultencoding('utf8')
+#windows下数据库连接
+yconnect = create_engine('mysql://admin:UAT#2017admin@192.168.1.122/test?charset=utf8')
+#centos下数据库连接
+# yconnect = create_engine(mysql+pymysql://admin:UAT#2017admin@192.168.1.122/test?charset=utf8')
+LOG_FORMAT="%(asctime)s=====+++++%(levelname)s++*****++%(message)s"
+logging.basicConfig(filename="tsetdiaozi.log",level=logging.WARNING,format=LOG_FORMAT)
 app = Flask(__name__)
 app.config.from_object(config)
 db.init_app(app)
 with app.app_context():
+    # db.init()
     db.create_all()
 UPLOAD_FOLDER='upload'
 app.config['UPLOAD_FOLDER'] = UPLOAD_FOLDER
@@ -73,7 +81,7 @@ def api_upload():
         return render_template('result.html', var1=fname)
     else:
         return jsonify({"descraption":u"upload a wrong file ","errno": 1001, "errmsg": u"failed",})
-        logging.error("a error file!")
+        logging.error(jsonify)
 
 @app.route("/login", methods=['GET','POST'])
 def login():
@@ -82,14 +90,20 @@ def login():
         data = forms.data#获取form数据信息（包含输入的用户名（account）和密码（pwd）等信息）,这里的account和pwd是在forms.py里定义的
         admin = User.query.filter_by(name=data["account"]).first()#查询表信息admin表里的用户名信息
         if admin == None:
-            return  u"账号不存在,请返回重新输入！"#操作提示信息，会在前端显示
-        elif admin != None and not admin.check_pwd(data["pwd"]):            #这里的check_pwd函数在models 下Admin模型下定义
-            return u"密码错误，请返回重新输入！"
+            return  jsonify({"descraption":u"username is wrong!! ","errno": 1002, "errmsg": u"failed",})#操作提示信息，会在前端显示
+        elif admin != None and not admin.check_pwd(data["pwd"]):      #这里的check_pwd函数在models 下Admin模型下定义
+            return jsonify({"descraption":u"password is wrong!! ","errno": 1003, "errmsg": u"failed",})
         session['name']= data['account']#匹配成功，添加session
+        db.session.commit()
         try:
           return redirect(request.args.get('next') or url_for('indexpage'))#重定向到下一页
         except Exception as e:
+          logging.error(e)
           print(e)
+        finally:
+            session['name'] = data['account']  # 匹配成功，添加session
+            return redirect(request.args.get('next') or url_for('indexpage'))  # 重定向到下一页
+
     return render_template('login.html',form=forms)
 @app.route("/regist", methods=['GET','POST'])
 def register():
@@ -114,181 +128,299 @@ def mycontext():
     else:
         return {}
 
-file_time =time.strftime('%Y%m%d%S',time.localtime(time.time()))
-result_dir=r"C:\Python27\flask_test\diaozi1\result"
+file_time=time.strftime('%Y%m%d%H%M%S',time.localtime(time.time()))
+result_dir=r'C:\Python27\flask_test\diaozi1\result'
 @app.route("/send_code_A", methods=['POST'])
 def send_codeA():
+    user_list = []
+    json_list = []
     upload_dir = r'C:\Python27\flask_test\diaozi1\upload'
-    report_dir = r"C:\Python27\flask_test\diaozi1\result"
     lists = os.listdir(upload_dir)
     ##申明匿名函数 获取最新访问的文件
     lists.sort(key=lambda fn: os.path.getatime(upload_dir + '\\' + fn))
     print(lists[-1])
     # 获取最新的文件
     file = os.path.join(upload_dir, lists[-1])
-    if (os.path.exists(report_dir))==False:
-        os.mkdir(report_dir)
+    if (os.path.exists(result_dir))==False:
+        os.mkdir(result_dir)
+    def get_api(user_list, x):
+        print ('start join:'+"第" + str(x) + "个线程" +file_time+"\n")
+        y = 1
+        for i in user_list:
+            if y % 4 == x:
+                url = 'http://10.76.11.20:82/api/services/cornucopia/rpt_ctc?name=%s&idcard=%s&phone=%s&auth_org=hulushuju' % (
+                i['name'], i['idcard'], str(i['phone']))
 
+                res = requests.get(url)
+                data = json.loads(res.text)
+                result = data.get("result", [])
 
-    def read_excel(file_path):
-        user_list = []
-        file_df = pd.read_excel(file_path, names=['name', 'idcard', 'phone'])
+                print(result)
+                if result:
+                    ctc_lts = result[0].get("contact_list", [])
+                    if ctc_lts:
+                        for j in range(len(ctc_lts)):
+                            ctc_lts[j]["uname"] = i['name']
+                            ctc_lts[j]["idcard"] = i['idcard']
+                            ctc_lts[j]["phoneNum"] = i['phone']
+                            # phlist = _phone[4:5]
+                            # _newphone = _phone.replace(list, '**')
+                            # print _newphone
+                    json_list.extend(ctc_lts)
+            y += 1
+        if len(user_list)-1:
+            print(len(user_list)-1)
+            opt_df = pd.DataFrame(json_list)
+            opt_df.to_excel(result_dir+"/"+file_time+'A'+'.'+"xlsx", encoding="utf-8", index=False)
+
+    def procuder():
+        file_df = pd.read_excel(file, names=['name', 'idcard', 'phone'])
         for idx, each_row in file_df.iterrows():
-            _name = each_row["name"]
-            _idcard = each_row["idcard"]
-            _phone = each_row["phone"]
-            url = 'http://10.76.11.20:82/api/services/cornucopia/rpt_ctc?name=%s&idcard=%s&phone=%s&auth_org=hulushuju' % (
-                _name, _idcard, _phone)
-            res = requests.get(url)
-            data = json.loads(res.text)
-            result = data.get("result", [])
-            print idx
-            if result:
-                ctc_lts = result[0].get("contact_list", [])
-                if ctc_lts:
-                    for i in range(len(ctc_lts)):
-                        ctc_lts[i]["uname"] = _name
-                        ctc_lts[i]["idcard"] = _idcard
-                        ctc_lts[i]["phoneNum"] = _phone
-                    user_list.extend(ctc_lts)
-        opt_df = pd.DataFrame(user_list)
-        opt_df.to_excel(result_dir+"/"+file_time+'A'+'.'+"xlsx", encoding="utf-8", index=False)
-        print '保存表格成功'
+            if file_df.iterrows():
+                name = each_row["name"]
+                idcard = each_row["idcard"]
+                phone = str(each_row["phone"])
+                if phone.count('.')==1:
+                    phone = str(each_row["phone"]).replace('.0', '')
+            # user_list.extend((_name,_idcard,_phone))
+            user_list.extend([{"name": name, "idcard": idcard, "phone": phone}])
 
+        # print(user_list)
+        return user_list
+
+    def main():
+        task=[]
+        x = 0
+        user_list = procuder()
+        for i in user_list:
+            print(i["name"])
+        for x in range(4):
+            th = threading.Thread(target=get_api, args=((user_list, x)))
+            th.start()
+            task.append(th)
+            x += 1
+        for tt in task:
+            tt.join()
+        print ('end join: '+"第" + str(x) + "个线程" +file_time+"\n")
     if __name__ == "__main__":
-        read_excel(file_path=file)
+        main()
         mailto_list = ["wangyue@daihoubang.com", "975405349@qq.com",]
         mail_title = 'Hey subject'
         mail_content = 'Hey this is content'
         mm = Mailer(mailto_list, mail_title, mail_content)
-        res = mm.sendMail()
-        print res
+        if os.listdir(result_dir):
+            res = mm.sendMail()
+        print (res)
     return '调取信修A成功' + render_template('result.html')
 
 
 @app.route("/send_code_B", methods=['POST'])
 def send_codeB():
-    upload_dir = r"C:\Python27\flask_test\diaozi1\upload"
-    report_dir = r"C:\Python27\flask_test\diaozi1\result"
+    user_list = []
+    json_list = []
+    result_dir = r'C:\Python27\flask_test\diaozi1\result'
+    upload_dir = r'C:\Python27\flask_test\diaozi1\upload'
     lists = os.listdir(upload_dir)
     ##申明匿名函数 获取最新访问的文件
     lists.sort(key=lambda fn: os.path.getatime(upload_dir + '\\' + fn))
     print(lists[-1])
     # 获取最新的文件
     file = os.path.join(upload_dir, lists[-1])
-    if (os.path.exists(report_dir))==False:
-        os.mkdir(report_dir)
+    if (os.path.exists(result_dir)) == False:
+        os.mkdir(result_dir)
 
-    def read_excel(file_path):
-        file_df = pd.read_excel(file_path, names=['name', 'idcard', 'phone'])
-        user_list = []
-        resultnum = 0
+    def get_api(user_list, x):
+        y = 1
+        print ('start join: ' + "第" + str(x) + "个线程" + file_time + "\n")
+        for i in user_list:
+            if y % 4 == x:
+                print(i['name'])
+                print(i['idcard'])
+                print(i['phone'])
+                print("第" + str(x) + "个线程")
+                url = 'http://10.76.11.20:82/api/services/cornucopia/hds?name=%s&idcard=%s&phone=%s&auth_org=hulushuju&max_query_time_interval=180&update=False' % (
+                    i['name'], i['idcard'], i['phone'])
+                res = requests.get(url)
+                data = json.loads(res.text)
+                result = data.get("result", [])
+                print(result)
+                if result:
+                    ctc_lts = result.get("eb_dts", [])
+                    if ctc_lts:
+                        for j in range(len(ctc_lts)):
+                            ctc_lts[j]["uname"] = i['name']
+                            ctc_lts[j]["idcard"] = i['idcard']
+                            ctc_lts[j]["phoneNum"] = i['phone']
+                            ctc_lts[j]["create_time"]=file_time
+                            # phone1=ctc_lts[i]["eb_phone"]
+                            # num_phone = phone1[:3] + "**" + phone1[5:]
+                            # ctc_lts[i]["eb_phone"]=num_phone
+                        json_list.extend(ctc_lts)
+            y += 1
+        opt_df = pd.DataFrame(json_list)
+        try:
+            if result['is_cache']:
+                print(result['is_cache'])
+                # opt_df.to_sql("test_diaozi", yconnect, if_exists='replace')
+            else:
+                opt_df.to_sql("test_diaozi", yconnect, if_exists='replace')
+        except Exception as e:
+            logging.error(e)
+        finally:
+            pass
+        if len(user_list) - 1:
+            print(len(user_list) - 1)
+            opt_df = pd.DataFrame(json_list)
+            opt_df.to_excel(result_dir + "/" + file_time + 'A' + '.' + "xlsx", encoding="utf-8", index=False)
+
+    def procuder():
+        file_df = pd.read_excel(file, names=['name', 'idcard', 'phone'])
         for idx, each_row in file_df.iterrows():
-            _name = each_row["name"]
-            _idcard = each_row["idcard"]
-            _phone = each_row["phone"]
-            url = 'http://10.76.11.20:82/api/services/cornucopia/hds?name=%s&idcard=%s&phone=%s&auth_org=hulushuju&max_query_time_interval=180&update=False' % (
-                _name, _idcard, _phone)
-            res = requests.get(url)
-            data = json.loads(res.text)
-            result = data.get("result", [])
-            if result:
-                ctc_lts = result.get("eb_dts", [])
-                if ctc_lts:
-                    for i in range(len(ctc_lts)):
-                        ctc_lts[i]["uname"] = _name
-                        ctc_lts[i]["idcard"] = _idcard
-                        ctc_lts[i]["phoneNum"] = _phone
-                        # phone1=ctc_lts[i]["eb_phone"]
-                        # num_phone = phone1[:3] + "**" + phone1[5:]
-                        # ctc_lts[i]["eb_phone"]=num_phone
-                    user_list.extend(ctc_lts)
-                    print(idx, each_row)
+            if file_df.iterrows():
+                name = each_row["name"]
+                idcard = each_row["idcard"]
+                phone = str(each_row["phone"])
+                if phone.count('.') == 1:
+                    phone = str(each_row["phone"]).replace('.0', '')
+            # user_list.extend((_name,_idcard,_phone))
+            user_list.extend([{"name": name, "idcard": idcard, "phone": phone}])
 
-        opt_df = pd.DataFrame(user_list)
-        opt_df.to_excel(result_dir+"/"+file_time+'B'+'.'+"xlsx", encoding="utf-8", index=False)
+        # print(user_list)
+        return user_list
+
+    def main():
+        task = []
+        x = 0
+        user_list = procuder()
+        for i in user_list:
+            print(i["name"])
+        for x in range(4):
+            th = threading.Thread(target=get_api, args=((user_list, x)))
+            th.start()
+            task.append(th)
+            x += 1
+        for tt in task:
+            tt.join()
+        print ('end join: ' + "第" + str(x) + "个线程" + file_time + "\n")
 
     if __name__ == "__main__":
-        # main_run()
-        read_excel(file_path=file)
-        mailto_list = ["wangyue@daihoubang.com", "975405349@qq.com", "zouchen@daihoubang.com","zouchen1983@163.com"]
+        main()
+        mailto_list = ["wangyue@daihoubang.com", "975405349@qq.com", ]
         mail_title = 'Hey subject'
         mail_content = 'Hey this is content'
         mm = Mailer(mailto_list, mail_title, mail_content)
-        res = mm.sendMail()
-        print res
-        print '保存表格成功'
+        if os.listdir(result_dir):
+            res = mm.sendMail()
+        print (res)
     return '调取信修B成功' + render_template('result.html')
+
 
 
 @app.route("/send_code_C", methods=['POST'])
 def send_codeC():
-    upload_dir = r"C:\Python27\flask_test\diaozi1\upload"
-    report_dir = r"C:\Python27\flask_test\diaozi1\result"
+    user_list = []
+    json_list = []
+    result_dir = r'C:\Python27\flask_test\diaozi1\result'
+    upload_dir = r'C:\Python27\flask_test\diaozi1\upload'
     lists = os.listdir(upload_dir)
     ##申明匿名函数 获取最新访问的文件
     lists.sort(key=lambda fn: os.path.getatime(upload_dir + '\\' + fn))
     print(lists[-1])
     # 获取最新的文件
     file = os.path.join(upload_dir, lists[-1])
-    if (os.path.exists(report_dir)) == False:
-        os.mkdir(report_dir)
-    def read_excel(file_path):
-        frames = []
-        file_df = pd.read_excel(file_path, names=['name', 'idcard', 'phone'])
-        for idx, each_row in file_df.iterrows():
-            _name = each_row["name"]
-            _idcard = each_row["idcard"]
-            _phone = each_row["phone"]
-            url = 'http://10.76.11.20:82/api/services/cornucopia/huluwa?name=%s&idcard=%s&phone=%s&auth_org=hulushuju&max_query_time_interval=180&update=False' % (
-                _name, _idcard, _phone)
-            res = requests.get(url)
-            data = json.loads(res.text)
-            result = data.get("result", [])
-            if result:
-                result = formatData(result, "addr")
-                result = formatData(result, "other_nm")
-                result = formatData(result, "ct_ph")
-                result = formatData(result, "ct_nm")
-                result = formatData(result, "other_idcd")
-                result = formatData(result, "other_ph")
-                result = formatData(result, "co_nm")
-                result = formatData(result, "email")
-                result = formatData(result, "imp_ct_idcd")
-                result = formatData(result, "eb_reciv_ph")
-                result = formatData(result, "weibo")
-                result = formatData(result, "ct_addr")
-                frames.extend(result)
-        opt_df = pd.DataFrame(frames)
-        opt_df.to_excel(result_dir+"/"+file_time+'C'+'.'+"xlsx", encoding="utf-8", index=False)
-        # print opt_df
-        print '保存表格成功'
+    if (os.path.exists(result_dir)) == False:
+        os.mkdir(result_dir)
 
+    def get_api(user_list, x):
+        print ('start join: ' + "第" + str(x) + "个线程" + file_time+ "\n")
+        y = 1
+        for i in user_list:
+            if y % 4 == x:
+                print(i['name'])
+                print(i['idcard'])
+                print(i['phone'])
+                url = 'http://10.76.11.20:82/api/services/cornucopia/huluwa?name=%s&idcard=%s&phone=%s&auth_org=hulushuju&max_query_time_interval=180&update=False' % (
+                    i['name'], i['idcard'], i['phone'])
+                res = requests.get(url)
+                data = json.loads(res.text)
+                result = data.get("result", [])
+                if result:
+                    result = formatData(result, "addr")
+                    result = formatData(result, "other_nm")
+                    result = formatData(result, "ct_ph")
+                    result = formatData(result, "ct_nm")
+                    result = formatData(result, "other_idcd")
+                    result = formatData(result, "other_ph")
+                    result = formatData(result, "co_nm")
+                    result = formatData(result, "email")
+                    result = formatData(result, "imp_ct_idcd")
+                    result = formatData(result, "eb_reciv_ph")
+                    result = formatData(result, "weibo")
+                    result = formatData(result, "ct_addr")
+                json_list.extend(result)
+            y += 1
+        if len(user_list) - 1:
+            print(len(user_list) - 1)
+            opt_df = pd.DataFrame(json_list)
+            opt_df.to_excel(result_dir + "/" + file_time + 'A' + '.' + "xlsx", encoding="utf-8", index=False)
     def formatData(data, paramName):
-        for i in range(len(data)):
-            if len(data[i][paramName]) >= 0:
-                for n in range(len(data[i][paramName])):
-                    data[i]["%s_%s" % (paramName, n)] = data[i][paramName][n]
-            data[i][paramName] = "空"
+        for j in range(len(data)):
+            if len(data[j][paramName]) >= 0:
+                for n in range(len(data[j][paramName])):
+                    data[j]["%s_%s" % (paramName, n)] = data[j][paramName][n]
+            data[j][paramName] = "空"
         return data
+
+    def procuder():
+        file_df = pd.read_excel(file, names=['name', 'idcard', 'phone'])
+        for idx, each_row in file_df.iterrows():
+            if file_df.iterrows():
+                name = each_row["name"]
+                idcard = each_row["idcard"]
+                phone = str(each_row["phone"])
+                if phone.count('.') == 1:
+                    phone = str(each_row["phone"]).replace('.0', '')
+            # user_list.extend((_name,_idcard,_phone))
+            user_list.extend([{"name": name, "idcard": idcard, "phone": phone}])
+
+        # print(user_list)
+        return user_list
+
+    def main():
+        task = []
+        x = 0
+        user_list = procuder()
+        for i in user_list:
+            print(i["name"])
+        for x in range(4):
+            th = threading.Thread(target=get_api, args=((user_list, x)))
+            th.start()
+            task.append(th)
+            x += 1
+        for tt in task:
+            tt.join()
+        print ('end join: ' + "第" + str(x) + "个线程" + file_time + "\n")
+
+
     if __name__ == "__main__":
-        read_excel(file_path=file)
-        mailto_list = ["wangyue@daihoubang.com", "975405349@qq.com","zouchen@daihoubang.com"]
+        main()
+        mailto_list = ["wangyue@daihoubang.com", "975405349@qq.com", ]
         mail_title = 'Hey subject'
         mail_content = 'Hey this is content'
         mm = Mailer(mailto_list, mail_title, mail_content)
-        res = mm.sendMail()
-        if os.path.exists(report_dir):
-            shutil.rmtree(report_dir)
-        print res
+        if os.listdir(result_dir):
+            res = mm.sendMail()
+        print (res)
     return '调取信修C成功' + render_template('result.html')
 @app.route("/clearresult", methods=['get'])
 def clearresult():
     return render_template('calender.html')
-@app.route("/clearresult1", methods=['POST'])
+@app.route("/clearresult", methods=['POST'])
 def clearresult1():
-    datetime=request.form.get('datatime')
-    bach_name=request.form.get('bach_name')
+    a=[]
+    starttime=request.form.get('starttime')
+    endtime=request.form.get('endtime')
+    called_phone=request.form.get('called_phone')
     # session['datetime']=datetime
     # print(session['datetime'])
     db_host = "10.76.2.2"
@@ -297,85 +429,64 @@ def clearresult1():
     db_password = "Collect@2017#dhb"
     db_data = "collect"
     # port=db_port,
-    file_time = time.strftime('%Y%m%d%S', time.localtime(time.time()))
-    result_dir = r"C:\Python27\flask_test\diaozi1\result"
-    lists = os.listdir(result_dir)
+    file_time = time.strftime('%Y-%m-%d-%H-%M-%S', time.localtime(time.time()))
+    create_time = time.strftime('%Y-%m-%d %H:%M:%S', time.localtime(time.time()))
+    report_dir = r'C:\Python27\flask_test\diaozi1\record'
+    # lists = os.listdir(report_dir)
     ##申明匿名函数 获取最新访问的文件
-    lists.sort(key=lambda fn: os.path.getatime(result_dir + '\\' + fn))
-    file = os.path.join(result_dir, lists[-1])
-    db = MySQLdb.connect(host=db_host, user=db_user, passwd=db_password, db=db_data,charset="utf8")
+    # lists.sort(key=lambda fn: os.path.getatime(report_dir + '\\' + fn))
+    # # 获取最新的文件
+    # file = os.path.join(report_dir, lists[-1])
+    db = pymysql.connect(host=db_host, user=db_user, passwd=db_password, db=db_data,charset="utf8")
 
-    wb = xlwt.Workbook(encoding='utf-8')  # 创建一个excel工作簿，编码utf-8，表格中支持中文
-    sheet = wb.add_sheet('sheet 1')  # 创建一个sheet
-    cursor = db.cursor(cursorclass=MySQLdb.cursors.DictCursor)  # 创建一个指针对象
+    # wb = xlwt.Workbook(encoding='utf-8')  # 创建一个excel工作簿，编码utf-8，表格中支持中文
+    # sheet = wb.add_sheet('sheet 1')  # 创建一个sheet
+    cursor = db.cursor(cursor=pymysql.cursors.DictCursor)  # 创建一个指针对象
     # 查询SQL
-    cursor.execute("SELECT t1.called_no,t1.feedback FROM soft_phone_clear_details_info t1 LEFT JOIN batch_info t2 ON t1.batch_id = t2.batch_id WHERE t1.create_date >= '%s'AND t1.feedback != ''AND t2.batch_name = '%s'"% (datetime,bach_name))
+    j = 0
+    if starttime and endtime and called_phone:
+        mySql = "SELECT * FROM  collect_soft_phone_event WHERE create_date > '%s'AND create_date<'%s'AND called_no='%s'" % (
+        starttime, endtime, called_phone)
+        cursor.execute(mySql)
+        print(mySql)
+        results = cursor.fetchall()
+        if results:
+            for i in results:
+                record_file=i['record_file']
+                if record_file:
+                    a.append(record_file)
+                    j += 1
+            opt_df = pd.DataFrame(a)
+        else:
+            jsonify({"descraption": "没有查询对应的录音"})
 
-    results = cursor.fetchall()
-    if results ==():
-        print results
-        return u"未找到对应批次数据！"
+    elif called_phone:
+        Sql = "SELECT * FROM  collect_soft_phone_event WHERE called_no='%s'" % (called_phone)
+        cursor.execute(Sql)
+        print(Sql)
+        results = cursor.fetchall()
+        if results:
+            for i in results:
+                record_file = i['record_file']
+                if record_file:
+                    a.append(record_file)
+                    j += 1
+
+            opt_df = pd.DataFrame(a)
+        else:
+            jsonify({"descraption": "没有查询对应的录音"})
     else:
+       return "未查到数据！请输入查询信息"
+        # opt_df.to_sql("test_records", yconnect, if_exists='replace')
 
-        # 获取查询结果
-        columnName = []
-        col = results[0].keys()
+    if __name__ == '__main__':
+        try:
+         opt_df.to_excel((report_dir + "/" + file_time + 'record' + '.' + "xlsx"))
+        except Exception as e:
+            pass
 
-        for i in col:
-            columnName.append(i)
+    print(j)
+    return render_template('calender.html',url=a,status=j,time=create_time)
 
-        # columnName.append("statusnames")
-        columnLen = len(columnName)
-
-        for i in range(columnLen):  # 将列名插入表格
-            sheet.write(0, i, columnName[i])
-
-        rows = len(results)  # 获取行数
-
-        dict = {
-            "dealing": "已接",
-            "notDeal": "未接",
-            "leak": "放弃(未接)",
-            "blackList": "黑名单",
-            "voicemail": "留言",
-            "user_busy": "用户正忙",
-            "call_reminder": "来电提醒",
-            "unavailable": "无法接通",
-            "call_barring": "呼叫限制",
-            "call_divert": "呼叫转移",
-            "shutdown": "关机",
-            "halt": "停机",
-            "vacant_number": "空号",
-            "in_the_call": "正在通话中",
-            "network_is_busy": "网络忙",
-            "overtime": "超时",
-            "short_tone": "短忙音",
-            "long_tone": "长忙音",
-            "unanswered_ringing": "振铃未接",
-            "phone_null": "号码为空",
-            "unknown": "未知",
-            "local_arrearage": "本机已欠费"
-
-        }
-        for i in range(0, rows):
-            for j in range(columnLen):
-                if (j == 0):
-                    sheet.write(i + 1, j, results[i][columnName[j]])
-                else:
-                    sheet.write(i + 1, j, dict[results[i][columnName[j]]])
-
-        if __name__ == '__main__':
-            wb.save(result_dir + "/" + file_time + 'clear' + '.' + "xlsx")
-            mailto_list = ["wangyue@daihoubang.com","zouchen@daihoubang.com"]
-            mail_title = 'Hey subject'
-            mail_content = 'Hey this is content'
-            mm = Mailer(mailto_list, mail_title, mail_content)
-            res = mm.sendMail()
-            print res
-            # 保存表格
-            print '保存表格成功'
-            cursor.close()
-            db.close()
-    return render_template('calender.html')
 if __name__ == '__main__':
-    app.run(port=5000,host='192.168.16.220',threaded=True)
+   app.run(port=5000,host='0.0.0.0',threaded=True)

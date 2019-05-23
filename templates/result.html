@@ -1,0 +1,26 @@
+{% extends 'base.html' %}
+{% block title %}首页{% endblock %}
+{% block main %}
+     <p class="font_style"> Your file was uploaded successfully {{var1}}</p>
+   {% if user %}
+      <a id="usr_style2" href="http://192.168.16.220:5000/">注销</a>
+       <a id="usr_style1" href="#">{{ user.username }}</a>
+   {% endif %}
+    </div>
+    <form action="send_code_A" method="post">
+    <input type=submit value=信修A>
+    </form>
+    <form action="send_code_B" method="post">
+    <input type=submit value=信修B>
+    </form>
+    <form action="send_code_C" method="post">
+    <input type=submit value=信修C>
+    </form>
+    <form action="/" method="get">
+       <input value="返回上传页" type="submit">
+    </form>
+       <form action="clearresult" method="get">
+       <input value="获取洗号结果" type="submit">
+    </form>
+{% endblock %}
+

@@ -1,0 +1,66 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Title</title>
+</head>
+<body>
+<div class="panel-body">
+                    {% for msg in get_flashed_messages(category_filter=['err']) %}　　　　<!--flash信息-->
+                        <p style="color: red">{{ msg }}</p>
+                    {% endfor %}
+                    {% for msg in get_flashed_messages(category_filter=['ok']) %}
+                        <p style="color: green">{{ msg }}</p>
+                    {% endfor %}
+                    <form role="form" method="POST">
+<fieldset>
+                            <div class="form-group">
+                                <label for="input_name"><span class="glyphicon glyphicon-user"></span>&nbsp;昵称</label>
+                                {{ form.account }}
+                            </div>
+                            {% for err in form.account.errors %}
+                                <div class="col-md-12">
+                                    <span style="color: red">{{ err }}</span>
+                                </div>
+                            {% endfor %}
+                            <div class="form-group">
+                                <label for="input_email"><span class="glyphicon glyphicon-envelope"></span>&nbsp;邮箱</label>
+                                {{ form.email }}
+                            </div>
+                            {% for err in form.email.errors %}
+                                <div class="col-md-12">
+                                    <span style="color: red">{{ err }}</span>
+                                </div>
+                            {% endfor %}
+                            <div class="form-group">
+                                <label for="input_phone"><span class="glyphicon glyphicon-phone"></span>&nbsp;手机</label>
+                                {{ form.phone }}
+                            </div>
+                            {% for err in form.phone.errors %}
+                                <div class="col-md-12">
+                                    <span style="color: red">{{ err }}</span>
+                                </div>
+                            {% endfor %}
+                            <div class="form-group">
+                                <label for="input_password"><span class="glyphicon glyphicon-lock"></span>&nbsp;密码</label>
+                                {{ form.pwd }}
+                            </div>
+                            {% for err in form.pwd.errors %}
+                                <div class="col-md-12">
+                                    <span style="color: red">{{ err }}</span>
+                                </div>
+                            {% endfor %}
+                            <div class="form-group">
+                                <label for="input_repassword"><span class="glyphicon glyphicon-lock"></span>&nbsp;确认密码</label>
+                                {{ form.repwd }}
+                            </div>
+                            {% for err in form.repwd.errors %}
+                                <div class="col-md-12">
+                                    <span style="color: red">{{ err }}</span>
+                                </div>
+                            {% endfor %}
+                            {{ form.csrf_token }}
+                            {{ form.submit }}
+ </fieldset>
+</body>
+</html>

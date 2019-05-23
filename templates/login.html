@@ -1,0 +1,69 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
+<meta http-equiv="Pragma" content="no-cache">
+<meta http-equiv="Cache-Control" content="no-cache">
+<meta http-equiv="Expires" content="0">
+<title>后台管理</title>
+<link href="{{ url_for('static',filename='css/login.css' )}}" rel="stylesheet"/>
+</head>
+
+<body>
+<div class="login_box">
+      <div class="login_l_img"><img src="{{ url_for('static',filename='images/login-img.png')}}" /></div>
+      <div class="login">
+          <div class="login_logo"><a href="#"><img src="{{ url_for('static',filename='images/login_logo.png')}}" /></a></div>
+          <div class="login_name">
+               <p>后台管理系统</p>
+          </div>
+      <div class="login-box-body">
+        {% for msg in get_flashed_messages() %}　　　　　　　　　　<!--这里对应视图函数里定义的提示信息 flash-->
+
+        <p class="login-box-msg" style="color: red;"></p>　　　　<!--信息在前端显示-->
+        {% endfor %}
+        <form method="POST" id="form-data">　　　　　　　　　　　　　　<!--使用form，这里可以不用写action-->
+            <div class="form-group has-feedback">
+                {{ form.account }}　　　　　　　　　　　　　<!--常规情况下，这里应该为一个input框，用来定义用户输入，由于在forms里已经定义，这里直接调用就行-->
+                <span class="glyphicon glyphicon-envelope form-control-feedback"></span>
+                {% for err in form.account.errors %}　　　　　　　　<!--错误信息-->
+                    <div class="col-md-12">
+
+                        <span style="color: red">{{ err }}</span>　　<!--显示错误信息-->
+                    </div>
+                {% endfor %}
+            </div>
+            <div class="form-group has-feedback">
+                {{ form.pwd }}　　　　　　　　　　　　　　　　<!--同上面的用户输入-->
+                <span class="glyphicon glyphicon-lock form-control-feedback"></span>
+                {% for err in form.pwd.errors %}　　　　　　　　　　　　<!--pwd输入错误的提示信息-->
+                    <div class="col-md-12">
+                        <font style="color: red">{{ err }}</font>
+                    </div>
+                {% endfor %}
+            </div>
+            <div class="row">
+                <div class="col-xs-8">
+                </div>
+                <div class="col-xs-4">
+                    {{ form.submit }}　　　　　　　　　　　　<!--提交按钮-->
+                    {{ form.csrf_token }}　　　　　　　　　　<!--csrftoken必须要写，同时还要设置 app的secret_key-->
+                </div>
+            </div>
+        </form>
+    </div>
+
+{#          <form action="/" method="post">#}
+{#              <input name="username" type="text"  placeholder="用户名" >#}
+{#              <input name="password" type="password"  placeholder="密码" />#}
+{#              <input value="登录" style="width:100%;" type="submit">#}
+{#          </form>#}
+           {% for message in get_flashed_messages() %}
+        {{ message }}
+    {% endfor %}
+      </div>
+</div>
+<div style="text-align:center;">
+</div>
+</body>
+</html>
